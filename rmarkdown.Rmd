@@ -1,0 +1,278 @@
+---
+title: "R notebook"
+author: "Aynaz adl zarrabi"
+date: "6/23/2021"
+output: html_document
+---
+## Analyse statistique et visualisation des données warhics
+### importer les differents libraries 
+```{r}
+library(tidyverse)
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(devtools)
+library(plyr)
+library(plotly)
+library(matrixStats)
+library(ggpubr)
+library(rstatix)
+```
+### trouver le working directory 
+```{python}
+import os
+path = os.getcwd()
+print(path)
+```
+### identifier le working directory 
+```{r}
+library(reticulate)
+#use_python("/Users/Aynaz/Library/r-miniconda/envs/r-reticulate/bin/python")
+py_install("pandas")
+py_install("numpy")
+py_install("matplotlib")
+py_install("seaborn")
+
+```
+
+### importation des donneés pour tracer les audiogrammes 
+```{python}
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+import seaborn as sns
+df_fin = pd.read_csv('df_fin.csv' , sep=',' , header=None)
+df_fin.columns = df_fin.iloc[0]
+df_fin=pd.DataFrame(df_fin)
+df_fin=df_fin.drop(df_fin.index[0])
+df_fin=df_fin.iloc[:, 1:]
+# check records
+df_fin
+```
+```{python}
+df_fin[["Audiometric Threshold","Frequency"]] = df_fin[["Audiometric Threshold","Frequency"]].apply(pd.to_numeric)
+df_fin.dtypes
+```
+### Plot générale des 12 audiogrammes par origine et level
+```{python}
+ticks=[.125,.25,.5,.75,1,1.5,2,3,4,6,8]
+labels = [i for i in ticks]
+#sns.set_style("whitegrid")
+#fig, ax = plt.subplots(figsize=(15, 10))
+#sns.set_context("notebook", font_scale=2, rc={"lines.linew3idth": 4})
+#sns.lineplot(
+#    data=df_fin,
+#    x="Frequency", y="Audiometric Threshold", hue="Warhics Level", style="Origin",markers=True, dashes=False,markersize=14)
+#ax.set_xlabel('Frequency (kHz)')
+#ax.set_ylabel('Audiometric threshold (dB HL)')
+#ax.legend(bbox_to_anchor=(1.01, 1),borderaxespad=0)
+#g.set_axis_labels("Frequence (kHz)", "Seuil Audiométrique (dBHL)")
+#g.set(ylim=(90,0),xscale="log",xticks = ticks,xticklabels = labels)
+#plt.savefig('plot4.png', dpi=300, bbox_inches='tight')
+#plt.show()
+```
+Update: since the answer from @r2evans, it is much easier to insert images into R Markdown and control the size of the image.
+
+Images
+The bookdown book does a great job of explaining that the best way to include images is by using include_graphics(). For example, a full width image can be printed with a caption below:
+
+```{r pressure, echo=FALSE, fig.cap="Audiogram", out.width = '100%'}
+knitr::include_graphics("plot4.png")
+```
+## comparer differents approches de random search par nombre d'iteration 
+### importation des données 
+
+```{r}
+df_iter<-read.csv("df_iter.csv",check.names = FALSE)
+df_iter
+```
+### statistique descriptive par nombre d'iteration  
+
+```{r}
+sum_stat_iter<-df_iter %>%
+  group_by(Gen) %>%
+  get_summary_stats(nb_iter, type = "mean_sd")
+sum_stat_iter
+
+```
+### boxplot des differents Gen par nombre d'iteration
+```{r}
+bxp1 <- ggboxplot(df_iter, x = "Gen", y = "nb_iter", add = "point")
+bxp1
+```
+### test de normalité 
+```{r}
+norm_iter<-df_iter %>%
+  group_by(Gen) %>%
+  shapiro_test(nb_iter)
+norm_iter
+```
+#### avec les p-values on voit que nos données ne sont pas distribués normale, et on va choisir un test non-parametrique pour comparer different approchase de random search par nombre d'iteration
+
+### Détection des audiogrammes aberrants 
+```{r}
+outliers_iter<-df_iter %>%
+  group_by(Gen) %>%
+  identify_outliers(nb_iter)
+outliers_iter
+```
+#### parce qu'on a choisi de faire un test non-parametrique , on n'a pas besoin d'enlever les audiogrammes aberrants 
+### Test statistique pour les mesures répétés (friedman) non-paramétrique
+```{r}
+res.fried1 <- df_iter %>% friedman_test(nb_iter ~ Gen |id_audiogram)
+res.fried1
+```
+#### Le nombre d'iteration n'est pas significativement différent entre différents Gen durant les itérations, X2(2) = 3.17, p = 0,205.
+
+## comparer differents approches de random search par score de reconnissance automatique de la parole 
+
+### importation des données 
+
+```{r}
+df_score<-read.csv("df_score.csv",check.names = FALSE)
+df_score=df_score[,-1]
+df_score
+```
+### statistique descriptive par score de RAP  
+
+```{r}
+sum_stat_score<-df_score %>%
+  group_by(Gen) %>%
+  get_summary_stats(score, type = "mean_sd")
+sum_stat_score
+```
+### boxplot des differents Gen par score de RAP
+
+```{r}
+bxp2 <- ggboxplot(df_score, x = "Gen", y = "score", add = "point")
+bxp2
+```
+### test de normalité 
+```{r}
+norm_score<-df_score %>%
+  group_by(Gen) %>%
+  shapiro_test(score)
+norm_score
+```
+#### avec les p-values on voit que nos données ne sont pas distribués normale, et on va choisir un test non-parametrique pour comparer different approchase de random search par score de RAP 
+
+### Détection des audiogrammes aberrants 
+```{r}
+outliers_score<-df_score %>%
+  group_by(Gen) %>%
+  identify_outliers(score)
+outliers_score
+```
+#### parce qu'on a choisi de faire un test non-parametrique , on n'a pas besoin d'enlever les audiogrammes aberrants
+
+### Test statistique pour les mesures répétés (friedman) non-paramétrique
+```{r}
+res.fried2 <- df_score %>% friedman_test(score ~ Gen |id_audiogram)
+res.fried2
+```
+#### Le score est significativement différent entre différents Gen durant les differents score de RAP , X2(2) = 10.16, p = 0,006, du coup on va regarder les difference entre chaque groupe
+
+### Test post hoc de mesure repetes non parametrique (wilcoxon)
+```{r}
+pwc_fried_score <- df_score %>%
+  wilcox_test(score ~ Gen, paired = TRUE, p.adjust.method = "bonferroni")
+pwc_fried_score
+```
+#### entre Gen 1 et Gen 2 il y a une difference significative de p value 0.032 on va les montrer sur le boxplot
+
+### boxplot avec les test de posthocs 
+```{r}
+pwc_fried_score <- pwc_fried_score %>% add_xy_position(x = "Gen")
+ggboxplot(df_score, x = "Gen", y = "score", add = "point") +
+  stat_pvalue_manual(pwc_fried_score, hide.ns = FALSE) +
+  labs(
+    subtitle = get_test_label(res.fried2,  detailed = TRUE),
+    caption = get_pwc_label(pwc_fried_score)
+  )
+```
+## comparer differents approches de random search par score de reconnissance automatique de la parole et par 2 methodes de (OPRA2 et CAM2)
+
+### importation des données 
+
+```{r}
+df_method<-read.csv("df_method.csv",check.names = FALSE)
+df_method=df_method[,-1]
+str(df_method)
+df_method <- df_method %>%
+  convert_as_factor(id_audiogram, method,Gen)
+```
+
+### statistique descriptive par score de RAP  
+
+```{r}
+sum_stat_method<-df_method %>%
+  group_by(method, Gen) %>%
+  get_summary_stats(score, type = "mean_sd")
+sum_stat_method
+```
+### boxplot des differents Gen par score de RAP
+
+```{r}
+bxp3 <- ggboxplot(
+  df_method, x = "Gen", y = "score",
+  color = "method", palette = "jco"
+)
+bxp3
+```
+## test de normalité 
+```{r}
+norm_method<-df_method %>%
+  group_by(method, Gen) %>%
+  shapiro_test(score)
+norm_method
+```
+#### avec les p-values on voit que nos données ne sont pas distribués normale, et on va choisir un test non-parametrique pour comparer different approchase de random search par score de RAP et par les deux differents methodes 
+
+### Détection des audiogrammes aberrants : parce qu'on a choisi de faire un test non-parametrique , on n'a pas besoin d'enlever les audiogrammes aberrants 
+```{r}
+outliers_method<-df_method %>%
+  group_by(method, Gen) %>%
+  identify_outliers(score)
+outliers_method
+```
+
+### Test statistique pour les mesures répétés à 2 facteurs non-paramétrique #Aligned Rank Transform for Nonparametric Factorial ANOVAs
+```{r}
+library(ARTool)
+m <- art(score ~ method*Gen + Error(id_audiogram), data=df_method)
+anova(m)
+```
+#### Il existe une interaction  significative entre la variable methode et la variable Gen et on va regarder precisement entre chaque groupe et chaque methode la difference siginificaive et on va les tracer sur le ggplot.
+```{r}
+library(dplyr)
+pwc_method<-art.con(m, "method:Gen", adjust="holm") %>%  
+		  summary() %>%  
+		  mutate(sig. = symnum(p.value, corr=FALSE, na=FALSE,
+		                       cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1),
+		                       symbols = c("***", "**", "*", ".", " ")))
+pwc_method
+```
+#### entre CAM2 et OPRA2 il y a une difference significative dans tous les different groupe de GEN 
+
+### boxplot avec les test de posthocs 
+```{r}
+res.aov3 <- anova_test(
+  data = df_method, dv = score, wid = id_audiogram,
+  within = c(method, Gen)
+)
+pwc_method<-df_method %>%
+  group_by(Gen) %>%
+  pairwise_t_test(
+    score ~ method, paired = TRUE,
+    p.adjust.method = "bonferroni"
+  )
+pwc_method <- pwc_method %>% add_xy_position(x = "Gen")
+bxp3 + 
+  stat_pvalue_manual(pwc_method, tip.length = 0, hide.ns = TRUE) +
+  labs(
+    subtitle = get_test_label(res.aov3, detailed = TRUE),
+    caption = get_pwc_label(pwc_method)
+  )
+```
+
